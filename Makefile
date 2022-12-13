@@ -10,7 +10,6 @@ all: $(EXE1) $(EXE2)
 
 ${EXE2}: 
 	$(CC) $(CFLAGS) -DWOF_LIB -fPIC -shared writeonceFS.c -o libwriteonceFS.so
-	cp libwriteonceFS.so /lib64
 	
 ${EXE1}:
 	$(CC) $(CFLAGS) writeonceFS.c -o testFS

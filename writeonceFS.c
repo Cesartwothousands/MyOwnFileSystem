@@ -610,7 +610,7 @@ int wo_open(char *filename, int flags, ...)
 		}
 		
 		//creat open file struct
-		fd = wo_open_file(dep->name, look_inode, mode);
+		fd = wo_open_file(dep->name, new_inode, mode);
 		printf("inode %d, creat new file %s, inode %d, fd %d\n", parent_inode, dep->name, new_inode, fd);
 		return fd;
 	}
