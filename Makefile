@@ -15,4 +15,4 @@ ${EXE1}:
 	$(CC) $(CFLAGS) writeonceFS.c -o testFS
 
 clean:
-	rm -rf $(EXE1) $(EXE2) *.o libwriteonceFS.so
+	rm -rf $(EXE1) $(EXE2) *.o libwriteonceFS.so wof.disk testFS
