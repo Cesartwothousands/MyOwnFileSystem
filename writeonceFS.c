@@ -1,7 +1,6 @@
 // File:	writeonceFS.c
-
 // List all group members' names: Zihan Chen(zc366), Jiayi Zhang(jz998)
-// iLab machine tested on: ilab1
+// iLab machine tested on:  ilab1
 
 #include <assert.h>
 #include <fcntl.h>
@@ -57,7 +56,6 @@ typedef struct
     int data_region_len;  // 3965
 } wof_super_t;
 
-#define WOF_SUPPORT_FILE_MAX (WOF_BLOCK_SIZE * 8)
 typedef struct
 {
     char filename[WOF_NAME_MAX + 1];
@@ -85,6 +83,7 @@ typedef struct
     wof_inode_t inodes[WOF_INODES_LEN];
 } inode_block;
 
+#define WOF_SUPPORT_FILE_MAX (WOF_BLOCK_SIZE * 60)
 int file_fd;
 wof_super_t g_wof_super;
 wof_file_t g_wof_file_table[WOF_SUPPORT_FILE_MAX];
@@ -96,28 +95,28 @@ char *g_image_addr;
 bitmap_t g_file_bitmap;
 int g_root_dir_inode = 0;
 
-static inline void __wof_read(int fd, int offest, void *buf, int size)
+static inline void __wof_read(int fd, int offset, void *buf, int size)
 {
 #ifndef IMAGE_USE_ADDR
-    lseek(fd, offest, SEEK_SET);
+    lseek(fd, offset, SEEK_SET);
     read(fd, buf, size);
 #else
     if (buf && g_image_addr)
     {
-        memcpy(buf, g_image_addr + offest, size);
+        memcpy(buf, g_image_addr + offset, size);
     }
 #endif
 }
 
-static inline void __wof_write(int fd, int offest, void *buf, int size)
+static inline void __wof_write(int fd, int offset, void *buf, int size)
 {
 #ifndef IMAGE_USE_ADDR
-    lseek(fd, offest, SEEK_SET);
+    lseek(fd, offset, SEEK_SET);
     write(fd, buf, size);
 #else
     if (buf && g_image_addr)
     {
-        memcpy(g_image_addr + offest, buf, size);
+        memcpy(g_image_addr + offset, buf, size);
     }
 #endif
 }
@@ -127,42 +126,12 @@ static inline void wof_get_super_data(int fd, wof_super_t *s)
     __wof_read(fd, 0, s, sizeof(wof_super_t));
 }
 
-void wof_hexdump(void *buf, size_t len)
-{
-    size_t i, j;
-    char *b = (char *)buf;
-
-    printf(".---------------------------------------------------------------------------.\n");
-    for (i = 0; i < len; i += 16)
-    {
-        printf("| %08lx      ", i);
-        for (j = i; j < i + 16; j++)
-        {
-            if (j % 4 == 0)
-                printf(" ");
-            if (j >= len)
-                printf("  ");
-            else
-                printf("%02x", (unsigned char)b[j]);
-        }
-
-        printf("       ");
-        for (j = i; j < i + 16; j++)
-            if (j >= len)
-                printf(" ");
-            else
-                printf("%c", isgraph(b[j]) ? b[j] : '.');
-        printf(" |\n");
-    }
-    printf("`---------------------------------------------------------------------------'\n");
-}
-
 int bitmap_is_set(bitmap_t *bitmap, int bit)
 {
     int index = bit / 32;
-    int offest = bit % 32;
+    int offset = bit % 32;
 
-    if (bitmap->bits[index] & (1 << offest))
+    if (bitmap->bits[index] & (1 << offset))
     {
         return 1;
     }
@@ -173,18 +142,18 @@ int bitmap_is_set(bitmap_t *bitmap, int bit)
 void bitmap_set(bitmap_t *bitmap, int bit)
 {
     int index = bit / 32;
-    int offest = bit % 32;
+    int offset = bit % 32;
 
-    bitmap->bits[index] |= (1 << offest);
+    bitmap->bits[index] |= (1 << offset);
     return;
 }
 
 void bitmap_clear(bitmap_t *bitmap, int bit)
 {
     int index = bit / 32;
-    int offest = bit % 32;
+    int offset = bit % 32;
 
-    bitmap->bits[index] &= ~(1 << offest);
+    bitmap->bits[index] &= ~(1 << offset);
     return;
 }
 
@@ -241,11 +210,11 @@ void get_inode(int inode_id, wof_inode_t *inode)
     int i = inode_id / WOF_INODES_LEN;
     int j = inode_id % WOF_INODES_LEN;
 
-    int offest = WOF_BLOCK_SIZE * (g_wof_super.inode_region_addr + i);
-    offest += j * sizeof(wof_inode_t);
+    int offset = WOF_BLOCK_SIZE * (g_wof_super.inode_region_addr + i);
+    offset += j * sizeof(wof_inode_t);
 
     memset(inode, 0x00, sizeof(wof_inode_t));
-    __wof_read(file_fd, offest, inode, sizeof(wof_inode_t));
+    __wof_read(file_fd, offset, inode, sizeof(wof_inode_t));
 
     return;
 }
@@ -255,10 +224,10 @@ void set_inode(int inode_id, wof_inode_t *inode)
     int i = inode_id / WOF_INODES_LEN;
     int j = inode_id % WOF_INODES_LEN;
 
-    int offest = WOF_BLOCK_SIZE * (g_wof_super.inode_region_addr + i);
-    offest += j * sizeof(wof_inode_t);
+    int offset = WOF_BLOCK_SIZE * (g_wof_super.inode_region_addr + i);
+    offset += j * sizeof(wof_inode_t);
 
-    __wof_write(file_fd, offest, inode, sizeof(wof_inode_t));
+    __wof_write(file_fd, offset, inode, sizeof(wof_inode_t));
 
     return;
 }
@@ -306,12 +275,12 @@ static wof_dir_t *wof_find_dir_sub_file_by_name(wof_inode_t *dir_inode, char *na
 
 int wof_find_free_bit(int addr)
 {
-    int j, k, offest;
+    int j, k, offset;
     bitmap_t bit_map;
     int bit;
 
-    offest = WOF_BLOCK_SIZE * addr;
-    __wof_read(file_fd, offest, &bit_map, WOF_BLOCK_SIZE);
+    offset = WOF_BLOCK_SIZE * addr;
+    __wof_read(file_fd, offset, &bit_map, WOF_BLOCK_SIZE);
 
     for (j = 0; j < WOF_BITMAP_LEN; j++)
     {
@@ -328,37 +297,13 @@ int wof_find_free_bit(int addr)
             }
 
             bit_map.bits[j] |= (1 << k);
-            __wof_write(file_fd, offest, &bit_map, WOF_BLOCK_SIZE);
+            __wof_write(file_fd, offset, &bit_map, WOF_BLOCK_SIZE);
             bit = j * 32 + k;
             return bit;
         }
     }
 
     return -1;
-}
-
-void clear_bitmap_bit(int bit, int addr)
-{
-    int j, offest;
-    bitmap_t imap;
-
-    offest = WOF_BLOCK_SIZE * addr;
-    __wof_read(file_fd, offest, &imap, WOF_BLOCK_SIZE);
-    for (j = 0; j < WOF_BITMAP_LEN; j++)
-    {
-        if (imap.bits[j] == 0)
-        {
-            continue;
-        }
-        if (imap.bits[j] & (1 << (bit)))
-        {
-            imap.bits[j] &= ~(1 << (bit));
-            __wof_write(file_fd, offest, &imap, WOF_BLOCK_SIZE);
-            return;
-        }
-    }
-
-    return;
 }
 
 int fdepth = 0;
@@ -399,12 +344,9 @@ void file_free_recu(void)
     fdepth = 0;
 }
 
-// return find inode
 static int wof_lookup_dir_sub_name(int inode_id, char *name)
 {
     wof_inode_t inode;
-
-    // printf("lookup dir inode %d, name %s\n", inode_id, name);
 
     if (inode_id < 0)
     {
@@ -713,7 +655,7 @@ int wo_read(int fd, void *buffer, int bytes)
     get_inode(file->inode, &inode);
     // read data
     int readn = bytes;
-    int read_offest = 0;
+    int read_offset = 0;
     read_index = 0;
 
     for (i = 0; i < WOF_BLOCK_DATA_SIZE; i++)
@@ -734,16 +676,16 @@ int wo_read(int fd, void *buffer, int bytes)
         {
             read_len = readn;
         }
-        if (read_offest < file->offset)
+        if (read_offset < file->offset)
         {
-            if (read_offest + read_len < file->offset)
+            if (read_offset + read_len < file->offset)
             {
-                read_offest += read_len;
+                read_offset += read_len;
                 continue;
             }
             else
             {
-                read_len = (read_offest + read_len) - file->offset;
+                read_len = (read_offset + read_len) - file->offset;
             }
         }
         get_block_data(inode.blocks[i], data);
@@ -782,15 +724,15 @@ static int write_get_block_id(wof_inode_t *inode, int data_bid)
     return data_bid;
 }
 
-static int write_do_skip_offest(int offest, wof_inode_t *inode)
+static int write_do_skip_offset(int offset, wof_inode_t *inode)
 {
-    int woffest = offest;
+    int woffset = offset;
     int data_bid = inode->blocks[0];
     int write_len;
 
     while (1)
     {
-        if (woffest <= 0)
+        if (woffset <= 0)
         {
             break;
         }
@@ -800,19 +742,19 @@ static int write_do_skip_offest(int offest, wof_inode_t *inode)
         {
             return -1;
         }
-        if (woffest > WOF_BLOCK_SIZE)
+        if (woffset > WOF_BLOCK_SIZE)
         {
             write_len = WOF_BLOCK_SIZE;
         }
         else
         {
-            write_len = woffest;
+            write_len = woffset;
         }
-        if (inode->size < offest)
+        if (inode->size < offset)
         {
             inode->size += write_len;
         }
-        woffest -= write_len;
+        woffset -= write_len;
     }
 
     return 0;
@@ -848,7 +790,7 @@ int wo_write(int fd, void *buffer, int bytes)
     int write_len, write_index;
     int data_bid = -1;
 
-    if (write_do_skip_offest(file->offset, &inode) != 0)
+    if (write_do_skip_offset(file->offset, &inode) != 0)
     {
         return -1;
     }
@@ -944,24 +886,23 @@ int wo_mount(char *filename, void *image_addr)
     if (file_fd > 0)
     {
 #ifdef IMAGE_USE_ADDR
-        fstat(file_fd, &stat);
-        g_image_size = stat.st_size;
-        printf("read exist %s size %d\n", g_image_filename, g_image_size);
-        close(file_fd);
+    fstat(file_fd, &stat);
+    g_image_size = stat.st_size;
+    printf("read exist %s size %d\n", g_image_filename, g_image_size);
+    close(file_fd);
 
-        file_fd = open(g_image_filename, O_RDONLY);
-        read(file_fd, image_addr, g_image_size);
-        close(file_fd);
+    file_fd = open(g_image_filename, O_RDONLY);
+    read(file_fd, image_addr, g_image_size);
+    close(file_fd);
 #endif
-
-        wof_get_super_data(file_fd, &g_wof_super);
-        total_blocks = 1 + 1 + 1 + g_wof_super.inode_region_len + g_wof_super.data_region_len;
-        printf("  total blocks      %d, size %d\n", total_blocks, total_blocks * WOF_BLOCK_SIZE);
-        printf("  inodes nums       %d [size of each: %lu]\n", num_inodes, sizeof(wof_inode_t));
-        printf("  data blocks       %d\n", num_data);
-        printf("  inode bitmap address %d\n", g_wof_super.inode_bitmap_addr);
-        printf("  data bitmap address %d\n", g_wof_super.data_bitmap_addr);
-        return 0;
+    wof_get_super_data(file_fd, &g_wof_super);
+    total_blocks = 1 + 1 + 1 + g_wof_super.inode_region_len + g_wof_super.data_region_len;
+    printf("  total blocks      %d, size %d\n", total_blocks, total_blocks * WOF_BLOCK_SIZE);
+    printf("  inodes nums       %d [size of each: %lu]\n", num_inodes, sizeof(wof_inode_t));
+    printf("  data blocks       %d\n", num_data);
+    printf("  inode bitmap address %d\n", g_wof_super.inode_bitmap_addr);
+    printf("  data bitmap address %d\n", g_wof_super.data_bitmap_addr);
+    return 0;
     }
 
     empty_buffer = malloc(WOF_BLOCK_SIZE);
@@ -1044,7 +985,6 @@ int wo_mount(char *filename, void *image_addr)
     read(file_fd, image_addr, g_image_size);
     close(file_fd);
 #endif
-
     wof_get_super_data(file_fd, &g_wof_super);
     total_blocks = 1 + 1 + 1 + g_wof_super.inode_region_len + g_wof_super.data_region_len;
     printf("  total blocks      %d, size %d\n", total_blocks, total_blocks * WOF_BLOCK_SIZE);
