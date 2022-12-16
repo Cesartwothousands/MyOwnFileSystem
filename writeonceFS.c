@@ -13,6 +13,16 @@
 #include <ctype.h>
 #include <stdarg.h>
 
+/*
+ * errno value       Error
+ * 1             Operation not permitted
+ * 2             No such file or directory
+ * 3             Out of memory
+ * 4             Permission denied
+ * 5             Illegal file name
+ * 6             disk broken
+ */
+
 #define WOF_DIRECTORY (0)
 #define WOF_FILE (1)
 #define WOF_BLOCK_SIZE (1024)
@@ -254,7 +264,6 @@ static wof_dir_t *wof_find_dir_sub_file_by_name(wof_inode_t *dir_inode, char *na
             {
                 continue;
             }
-            // printf("find entries[%d]: %s, inode %d\n", j, dir->name, dir->inode);
             if (strcmp(dir->name, name) == 0)
             {
                 find_dir = dir;
@@ -480,7 +489,6 @@ static int wo_creat_dir_file(int inode_id, int type, char *name)
         return -1;
     }
 
-    // do parent,FIXME, dir is more
     dir_block_t dir_block;
     for (i = 0; i < WOF_BLOCK_DATA_SIZE; i++)
     {
@@ -1019,7 +1027,7 @@ int wo_unmount(void *image_addr)
 }
 
 #ifndef WOF_LIB
-#define MOUTN_AMAGE_LEN (5 * 1024 * 1024) // 5M
+#define MOUTN_AMAGE_LEN (4 * 1024 * 1024) // 4M
 int main(int argc, char *argv[])
 {
     g_image_addr = malloc(MOUTN_AMAGE_LEN);
@@ -1032,7 +1040,7 @@ int main(int argc, char *argv[])
         printf("open error");
         goto __unmount;
     }
-    printf("write test.txt:[hello]\n");
+    printf("write test.txt:[hello] successfully\n");
     wo_write(fd, "hello", 5);
     wo_close(fd);
 
@@ -1044,7 +1052,7 @@ int main(int argc, char *argv[])
         goto __unmount;
     }
     wo_read(fd, buf, 5);
-    printf("read test.txt:[%s]\n", buf);
+    printf("read test.txt:[%s] successfully\n", buf);
     wo_close(fd);
 
 __unmount:
