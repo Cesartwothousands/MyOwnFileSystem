@@ -20,7 +20,7 @@
  * 3             Out of memory
  * 4             Illegal name
  * 5             Operation not permitted
- * 6             disk broken
+ * 6             Disk broken
  */
 
 #define WOF_DIRECTORY (0)
