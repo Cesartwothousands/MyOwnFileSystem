@@ -15,11 +15,11 @@
 
 /*
  * errno value       Error
- * 1             Operation not permitted
- * 2             No such file or directory
+ * 1             Directory not exists
+ * 2             Create error, no such file or directory
  * 3             Out of memory
- * 4             Permission denied
- * 5             Illegal file name
+ * 4             Illegal name
+ * 5             Operation not permitted
  * 6             disk broken
  */
 
@@ -32,6 +32,7 @@
 #define WO_WRONLY 0x02
 #define WO_RDWR 0x04
 #define WO_CREAT 0x08
+int Errno = 0;
 
 // 128 bytes
 typedef struct
@@ -464,7 +465,8 @@ static int wo_creat_dir_file(int inode_id, int type, char *name)
     get_inode(inode_id, &pdir_inode);
     if (pdir_inode.type != WOF_DIRECTORY)
     {
-        printf("inode %d not directory\n", inode_id);
+        Errno = 1;
+        printf("Errno value %d: inode %d not directory\n", Errno, inode_id);
         return -1;
     }
 
@@ -485,7 +487,8 @@ static int wo_creat_dir_file(int inode_id, int type, char *name)
     }
     if (new_inode == -1)
     {
-        printf("inode %d creat dir or file error\n", inode_id);
+        Errno = 2;
+        printf("Errno value %d: inode %d creat dir or file error\n", Errno, inode_id);
         return -1;
     }
 
@@ -523,14 +526,16 @@ int wo_open_file(char *filename, int inode, int mode)
 {
     int fd = wof_get_file_fd();
     if (fd == -1)
-    {
-        printf("not free fd\n");
+    {   
+        Errno = 3;
+        printf("Errno value %d: not free fd\n",Errno);
         return -1;
     }
 
     if (fd > WOF_SUPPORT_FILE_MAX)
-    {
-        printf("file is full\n");
+    {   
+        Errno = 3;
+        printf("Errno value %d: file is full\n",Errno);
         bitmap_clear(&g_file_bitmap, fd);
         return -1;
     }
@@ -555,14 +560,16 @@ int wo_open(char *filename, int flags, ...)
     printf("open %s\n", tmp_filename);
 
     if (filename[0] != '/')
-    {
-        printf("only support /xx/xx/aa.txt");
+    {   
+        Errno = 4;
+        printf("Errno value %d: only support /xx/xx/aa.txt",Errno);
         return -1;
     }
 
     if (filename[0] == '/' && strlen(filename) == 1)
     {
-        printf("cant open / dir\n");
+        Errno = 4;
+        printf("Errno value %d: cant open / dir\n",Errno);
         return -1;
     }
 
@@ -644,19 +651,22 @@ int wo_read(int fd, void *buffer, int bytes)
     char data[WOF_BLOCK_SIZE];
 
     if (fd <= 0 || fd > WOF_SUPPORT_FILE_MAX)
-    {
-        printf("fd %d error\n", fd);
+    {   
+        Errno = 3;
+        printf("Errno value %d: fd %d error\n",Errno, fd);
         return -1;
     }
     wof_file_t *file = &g_wof_file_table[fd];
     if (file->inode <= 0)
-    {
-        printf("fd %d error\n", fd);
+    {   
+        Errno = 6;
+        printf("Errno value %d: fd %d error\n",Errno, fd);
         return -1;
     }
     if ((file->mode & (WO_RDONLY | WO_RDWR)) == 0)
-    {
-        printf("not read permission\n");
+    {   
+        Errno = 5;
+        printf("Errno value %d: not read permission\n",Errno);
         return -1;
     }
 
@@ -775,20 +785,23 @@ int wo_write(int fd, void *buffer, int bytes)
 
     if (fd <= 0 || fd > WOF_SUPPORT_FILE_MAX)
     {
-        printf("fd %d error\n", fd);
+        Errno = 3;
+        printf("Errno value %d: fd %d error\n",Errno, fd);
         return -1;
     }
 
     wof_file_t *file = &g_wof_file_table[fd];
     if (file->inode <= 0)
     {
-        printf("fd %d error\n", fd);
+        Errno = 3;
+        printf("Errno value %d: fd %d error\n",Errno, fd);
         return -1;
     }
 
     if ((file->mode & (WO_WRONLY | WO_RDWR)) == 0)
     {
-        printf("not read permission\n");
+        Errno = 5;
+        printf("Errno value %d: not read permission\n",Errno);
         return -1;
     }
 
@@ -866,7 +879,8 @@ int wo_close(int fd)
 {
     if (fd <= 0 || fd > WOF_SUPPORT_FILE_MAX)
     {
-        printf("fd %d error\n", fd);
+        Errno = 3;
+        printf("Errno value %d: fd %d error\n",Errno, fd);
         return -1;
     }
 
